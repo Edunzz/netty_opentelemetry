@@ -1,0 +1,47 @@
+version: '3'
+
+services:
+  myapp:
+    build: ./reactive-microservice
+    ports:
+      - "8080:8080"
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otlp-collector:55680"
+    command: java -javaagent:/usr/share/opentelemetry-javaagent/opentelemetry-javaagent.jar -Dotel.traces.exporter=otlp -Dotel.metrics.exporter=otlp -jar myapp.jar
+
+  otlp-collector:
+    image: otel/opentelemetry-collector:latest
+    ports:
+      - "55680:55680"
+      - "55681:55681"
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    command: ["--config", "/etc/otel-collector-config.yaml"]
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus:/etc/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana:/etc/grafana
+    depends_on:
+      - prometheus
+
+  zipkin:
+    image: openzipkin/zipkin
+    ports:
+      - "9411:9411"
+    environment:
+      STORAGE_TYPE: memory
+    depends_on:
+      - myapp
+
